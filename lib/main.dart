@@ -38,6 +38,7 @@ class _GameScreenState extends State<GameScreen>
   bool inBonusRound = false;
   bool showingBonusEndPopup = false;
   bool bonusPopupVisible = false;
+bool sparkActive = false;
   int bonusScore = 0;
   int displayedBonus = 0;
 
@@ -181,47 +182,55 @@ _updateEffectList<FlowerPetal>(petals, 100, (FlowerPetal p) => p.life > 0 && p.y
           (FlowerPetal p) => p.copyWith(x: p.x + p.dx, y: p.y + p.dy, life: p.life - 1));
 
 
-      // Check collisions with items
-      for (var item in items.toList()) {
-        if (isColliding(
-            butterflyX, butterflyY, 50, 50, item.x, item.y, item.size, item.size)) {
-          switch (item.type) {
-            case FallingItemType.coin:
-            case FallingItemType.bill:
-            case FallingItemType.moneyBag:
-              if (!inBonusRound) {
-                score += ((item.value ?? 1) * currentMultiplier).toInt();
-              } else {
-                bonusScore += ((item.value ?? 1) * currentMultiplier).toInt();
-              }
-              _spawnParticles(butterflyX + 25, butterflyY + 25, 6, Colors.yellowAccent);
-              break;
+// Check collisions with items
+for (var item in items.toList()) {
+  if (isColliding(
+      butterflyX, butterflyY, 50, 50, item.x, item.y, item.size, item.size)) {
 
-            case FallingItemType.gem:
-              _collectGem(item);
-              break;
-
-            case FallingItemType.magicOrb:
-              if (!inBonusRound) {
-                _triggerFlowerBurst();
-                _spawnParticles(butterflyX + 25, butterflyY + 25, 12, Colors.pinkAccent);
-              }
-              break;
-
-            case FallingItemType.lightning:
-              _activateMultiplier(2.0, Duration(seconds: 10));
-              _spawnMultiplierEffects(butterflyX + 25, butterflyY + 25);
-              _triggerLightningEffects();
-              break;
-
-            default:
-              break;
-          }
-
-          items.remove(item);
+    switch (item.type) {
+      case FallingItemType.lightning:
+        if (!sparkActive) {
+          sparkActive = true;
+          _activateMultiplier(2.0, Duration(seconds: 10));
+          _spawnMultiplierEffects(butterflyX + 25, butterflyY + 25);
+          _triggerLightningEffects().then((_) {
+            sparkActive = false;
+          });
         }
-      }
+        break;
 
+      case FallingItemType.gem:
+        _collectGem(item);
+        break;
+
+      case FallingItemType.magicOrb:
+        if (!inBonusRound) {
+          _triggerFlowerBurst();
+          _spawnParticles(butterflyX + 25, butterflyY + 25, 12, Colors.pinkAccent);
+        }
+        break;
+
+      case FallingItemType.coin:
+      case FallingItemType.bill:
+      case FallingItemType.moneyBag:
+        int value = item.value ?? 1;
+        if (inBonusRound) {
+          bonusScore += value;
+        } else {
+          score += (value * currentMultiplier).toInt();
+        }
+        _spawnParticles(item.x, item.y, 4, Colors.yellowAccent);
+        break;
+
+      default:
+        // Handle any other future item types
+        break;
+    }
+
+    // Remove the item after processing
+    items.remove(item);
+  }
+}
       // Check collisions with burstCoins
       for (var b in burstCoins.toList()) {
         if (isColliding(butterflyX, butterflyY, 50, 50, b.x, b.y, b.size, b.size)) {
@@ -278,11 +287,14 @@ _updateEffectList<FlowerPetal>(petals, 100, (FlowerPetal p) => p.life > 0 && p.y
     }
   }
 
-  void _triggerLightningEffects() {
-    _triggerScreenShake();
-    _triggerFlash();
-    _spawnLightningBurst(butterflyX + 25, butterflyY + 25);
-  }
+Future<void> _triggerLightningEffects() async {
+  _triggerScreenShake();
+  _triggerFlash();
+  _spawnLightningBurst(butterflyX + 25, butterflyY + 25);
+
+  // wait for particles to mostly disappear
+  await Future.delayed(Duration(milliseconds: 500));
+}
 
   void _triggerScreenShake() {
     int ticks = 8;
