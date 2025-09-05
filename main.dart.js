@@ -33523,9 +33523,9 @@ n=a.y?new A.dP(a0,a0,a0,a0,A.a([new A.dQ(5,B.bL,A.aK(153,255,255,255),B.h,20)],m
 p.push(A.ys(a0,A.fF(a0,A.nP(A.hk("\ud83e\udd8b",A.ff(a0,a0,a0,a0,a0,a0,a0,a0,a0,a0,a0,50,a0,a0,a0,a0,a0,!0,a0,a0,a0,a0,a0,a0,a0,a0),a0),a0,a0),a0,n,80,a0,a0,80),a0,a0,q-15,a0,o-15,a0))
 p.push(A.ys(a0,A.hk("Coins: "+a.r,A.ff(a0,a0,B.i,a0,a0,a0,a0,a0,a0,a0,a0,30,a0,a0,B.aQ,a0,a0,!0,a0,a0,a0,a0,a0,A.a([new A.dg(B.k,B.h,5)],j),a0,a0),a0),a0,a0,20,a0,40,a0))
 p.push(A.ys(a0,A.a2K(A.aan(3,new A.U5(a),t.cl),B.o0),a0,a0,20,a0,90,a0))
-if(a.ay)p.push(A.nP(A.fF(a0,A.hk("BONUS ROUND!",A.ff(a0,a0,B.bq,a0,a0,a0,a0,a0,a0,a0,a0,48,a0,a0,B.aQ,a0,a0,!0,a0,a0,a0,a0,a0,A.a([new A.dg(B.k,B.h,5)],j),a0,a0),a0),B.u,a0,a0,a0,new A.bb(20,20,20,20),a0),a0,a0))
+if(a.ay)p.push(A.nP(A.fF(a0,A.hk("BONUS ROUND!",A.ff(a0,a0,B.bq,a0,a0,a0,a0,a0,a0,a0,a0,30,a0,a0,B.aQ,a0,a0,!0,a0,a0,a0,a0,a0,A.a([new A.dg(B.k,B.h,5)],j),a0,a0),a0),B.u,a0,a0,a0,new A.bb(20,20,20,20),a0),a0,a0))
 if(a.ax)p.push(A.nP(A.fF(a0,A.hk("BONUS SCORE: "+a.CW,A.ff(a0,a0,B.Et,a0,a0,a0,a0,a0,a0,a0,a0,42,a0,a0,B.aQ,a0,a0,!0,a0,a0,a0,a0,a0,A.a([new A.dg(B.k,B.h,5)],j),a0,a0),a0),B.u,a0,a0,a0,new A.bb(20,20,20,20),a0),a0,a0))
-if(a.w)p.push(A.nP(A.fF(a0,A.hk("GAME OVER\nTap to Restart",A.ff(a0,a0,B.i,a0,a0,a0,a0,a0,a0,a0,a0,36,a0,a0,B.aQ,a0,a0,!0,a0,a0,a0,a0,a0,A.a([new A.dg(B.k,B.h,5)],j),a0,a0),B.e5),B.t,a0,a0,a0,new A.bb(20,20,20,20),a0),a0,a0))
+if(a.w)p.push(A.nP(A.fF(a0,A.hk("GAME OVER\nTap to Restart",A.ff(a0,a0,B.i,a0,a0,a0,a0,a0,a0,a0,a0,30,a0,a0,B.aQ,a0,a0,!0,a0,a0,a0,a0,a0,A.a([new A.dg(B.k,B.h,5)],j),a0,a0),B.e5),B.t,a0,a0,a0,new A.bb(20,20,20,20),a0),a0,a0))
 r=A.fF(a0,A.Qr(B.cJ,p,B.aB,B.e2),a0,new A.dP(a0,a0,a0,a0,a0,new A.lB(B.ui,B.hr,B.cF,r,a0,a0),B.bN),a0,a0,a0,a0)
 return A.YX(a0,new A.rf(A.Zc(s.a,s.b,0),a0,!0,a0,r,a0),B.bZ,!1,a0,a0,a0,a0,a0,a.gUI(),a0,a0,a0,a0,a0,a0,a0,a0,new A.U6(a),a0,a0,a0)}}
 A.U4.prototype={
