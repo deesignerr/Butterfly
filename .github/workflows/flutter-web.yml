@@ -1,30 +1,37 @@
-name: Build and Deploy Flutter Web
+name: Deploy Flutter Web App
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main   # use your default branch name
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v3
 
-      - name: Install Flutter
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.6'
-          channel: 'stable'
+          flutter-version: '3.22.0' # or your version
+
+      - name: Enable web
+        run: flutter config --enable-web
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build web
-        # ✅ Added --base-href so paths work for GitHub Pages
-        run: flutter build web --release --base-href /butterfly/
-- name: Deploy
-  uses: peaceiris/actions-gh-pages@v3
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-    publish_dir: ./build/web
+      - name: Build release
+        run: flutter build web --release --base-href /Butterfly/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/web
+          publish_branch: gh-pages
