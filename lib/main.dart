@@ -798,7 +798,7 @@ Positioned(
                     child: Text(
                       'BONUS ROUND!',
                       style: TextStyle(
-                        fontSize: 48,
+                        fontSize: 30,
                         color: Colors.yellowAccent,
                         fontWeight: FontWeight.bold,
                         shadows: [Shadow(color: Colors.black, blurRadius: 5)],
@@ -833,7 +833,7 @@ Positioned(
                       'GAME OVER\nTap to Restart',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 36,
+                        fontSize: 30,
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         shadows: [Shadow(color: Colors.black, blurRadius: 5)],
