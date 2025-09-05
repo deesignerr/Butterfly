@@ -165,12 +165,21 @@ class _GameScreenState extends State<GameScreen>
           .toList();
 
       // Update particles, burstCoins, petals
-      _updateEffectList(particles, 100, (p) => p.life > 0, (p) => p.copyWith(
-          x: p.x + p.dx, y: p.y + p.dy, life: p.life - 1));
-      _updateEffectList(burstCoins, 100, (b) => b.life > 0 && b.y <= screenHeight + 50,
-          (b) => b.copyWith(dx: b.dx * 0.99, dy: b.dy + 0.25, x: b.x + b.dx, y: b.y + b.dy, life: b.life - 1));
-      _updateEffectList(petals, 100, (p) => p.life > 0 && p.y <= screenHeight + 50,
-          (p) => p.copyWith(x: p.x + p.dx, y: p.y + p.dy, life: p.life - 1));
+_updateEffectList<Particle>(particles, 100, (Particle p) => p.life > 0 && p.y >= -50 && p.y <= screenHeight + 50,
+          (Particle p) => p.copyWith(x: p.x + p.dx, y: p.y + p.dy, life: p.life - 1));
+
+_updateEffectList<BurstCoin>(burstCoins, 100, (BurstCoin b) => b.life > 0 && b.y >= -50 && b.y <= screenHeight + 50, (BurstCoin b) {
+    return b.copyWith(
+        dx: b.dx * 0.99,
+        dy: b.dy + 0.25,
+        x: b.x + b.dx,
+        y: b.y + b.dy,
+        life: b.life - 1);
+});
+
+_updateEffectList<FlowerPetal>(petals, 100, (FlowerPetal p) => p.life > 0 && p.y >= -50 && p.y <= screenHeight + 50,
+          (FlowerPetal p) => p.copyWith(x: p.x + p.dx, y: p.y + p.dy, life: p.life - 1));
+
 
       // Check collisions with items
       for (var item in items.toList()) {
