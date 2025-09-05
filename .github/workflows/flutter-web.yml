@@ -24,10 +24,8 @@ jobs:
         # ✅ Added --base-href so paths work for GitHub Pages
         run: flutter build web --release --base-href /butterfly/
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          # Use a Personal Access Token since the repo is private
-          personal_token: ${{ secrets.GH_PAT }}
-          publish_dir: ./build/web
-          keep_files: true
+- name: Deploy
+  uses: peaceiris/actions-gh-pages@v3
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    publish_dir: ./build/web
