@@ -31,15 +31,6 @@ class _GameScreenState extends State<GameScreen>
   bool multiplierActive = false;
   Timer? multiplierTimer;
 
-  bool inBonusRound = false;
-  bool showingBonusEndPopup = false;
-  bool bonusPopupVisible = false;
-  int bonusScore = 0;
-  int displayedBonus = 0;
-
-  int gemsCollected = 0;
-  final int gemsRequired = 3;
-
   final Random random = Random();
   late AnimationController _controller;
   late double screenWidth;
@@ -51,7 +42,6 @@ class _GameScreenState extends State<GameScreen>
   List<StaticParticle> particles = [];
 
   final List<String> obstacleTypes = ['🌸', '🍄', '🍃', '🐝'];
-
   bool initialized = false;
 
   @override
@@ -79,18 +69,17 @@ class _GameScreenState extends State<GameScreen>
     if (!initialized || gameOver) return;
 
     setState(() {
-      // Increase speed gradually
-      if (!inBonusRound && score != 0 && score % 10 == 0) {
+      // Gradually increase speed
+      if (score != 0 && score % 10 == 0) {
         speed = 3.0 * (1 + 0.02 * (score ~/ 10));
       }
       speed = min(speed, 8.0);
 
-      // Spawn obstacles
-      int targetObstacles = 1 + min(score ~/ 100 * 5, 50);
+      // Spawn slightly more obstacles in the beginning
+      int targetObstacles = 2 + min(score ~/ 50, 15);
       while (obstacles.length < targetObstacles) {
         double lastY = obstacles.isNotEmpty ? obstacles.last.y : screenHeight;
-        double spacing = 120;
-        if (score >= 800) spacing = 30;
+        double spacing = 100;
         if (obstacles.isEmpty || lastY > spacing) {
           obstacles.add(Obstacle(
               x: random.nextDouble() * (screenWidth - 50),
@@ -102,19 +91,15 @@ class _GameScreenState extends State<GameScreen>
         }
       }
 
-      // Spawn items
-      if (items.isEmpty || items.last.y > 80) {
+      // Limit number of coins on screen
+      if (items.length < 5) {
         double roll = random.nextDouble();
         FallingItemType type;
-        int value = 1;
         double size = 20;
         if (roll < 0.05) {
           type = FallingItemType.lightning;
           size = 40;
-        } else if (score < 800 && roll < 0.10) {
-          type = FallingItemType.gem;
-          size = 30;
-        } else if (roll < 0.15) {
+        } else if (roll < 0.10) {
           type = FallingItemType.magicOrb;
           size = 30;
         } else {
@@ -126,7 +111,7 @@ class _GameScreenState extends State<GameScreen>
             y: -30,
             type: type,
             size: size,
-            value: value));
+            value: 1));
       }
 
       // Move obstacles & items
@@ -134,35 +119,34 @@ class _GameScreenState extends State<GameScreen>
           .map((o) => o.copyWith(
               y: o.y + speed, x: (o.x + o.drift).clamp(0.0, screenWidth - 50)))
           .toList();
+
       items = items
-          .map((c) => c.copyWith(y: c.y + (inBonusRound ? speed * 2 : speed)))
+          .map((c) => c.copyWith(y: c.y + speed))
           .toList();
 
       // Move burstCoins
       for (var i = 0; i < burstCoins.length; i++) {
         BurstCoin b = burstCoins[i];
-        burstCoins[i] = b.copyWith(y: b.y + b.dy);
+        burstCoins[i] = b.copyWith(x: b.x + b.dx, y: b.y + b.dy, life: b.life - 1);
       }
-      burstCoins.removeWhere((b) => b.y > screenHeight + 50);
+      burstCoins.removeWhere((b) => b.life <= 0 || b.y > screenHeight + 50);
 
       // Move particles
       for (var i = 0; i < particles.length; i++) {
         StaticParticle p = particles[i];
-        particles[i] = p.copyWith(y: p.y + 0.5);
+        particles[i] = p.copyWith(
+            x: p.x + p.dx,
+            y: p.y + p.dy,
+            life: p.life - 1);
       }
-      particles.removeWhere((p) => p.y > screenHeight + 50);
+      particles.removeWhere((p) => p.life <= 0);
 
       // Check collisions
       for (var item in items.toList()) {
         if (_isColliding(butterflyX, butterflyY, 50, 50, item.x, item.y, item.size, item.size)) {
           switch (item.type) {
             case FallingItemType.coin:
-            case FallingItemType.bill:
-            case FallingItemType.moneyBag:
               _collectScore(item.value!);
-              break;
-            case FallingItemType.gem:
-              _collectGem(item);
               break;
             case FallingItemType.magicOrb:
               _triggerMagicOrb();
@@ -178,14 +162,12 @@ class _GameScreenState extends State<GameScreen>
       }
 
       // Check collisions with obstacles
-      if (!inBonusRound) {
-        for (var obs in obstacles.toList()) {
-          if (_isColliding(
-              butterflyX, butterflyY, 50, 50, obs.x, obs.y, 50, 50)) {
-            gameOver = true;
-            _controller.stop();
-            break;
-          }
+      for (var obs in obstacles.toList()) {
+        if (_isColliding(
+            butterflyX, butterflyY, 50, 50, obs.x, obs.y, 50, 50)) {
+          gameOver = true;
+          _controller.stop();
+          break;
         }
       }
 
@@ -202,36 +184,45 @@ class _GameScreenState extends State<GameScreen>
 
   void _collectScore(int value) {
     score += (value * currentMultiplier).toInt();
-    particles.add(StaticParticle(
-      x: butterflyX + 25,
-      y: butterflyY + 25,
-      size: 5,
-      color: Colors.yellowAccent,
-    ));
+
+    // Spray particles upward
+    for (int i = 0; i < 6; i++) {
+      particles.add(StaticParticle(
+        x: butterflyX + 25,
+        y: butterflyY + 25,
+        dx: random.nextDouble() * 4 - 2,
+        dy: -(2 + random.nextDouble() * 2),
+        size: 4,
+        color: Colors.yellowAccent,
+        life: 20 + random.nextInt(10),
+      ));
+    }
   }
 
   void _triggerMagicOrb() {
-    // spawn 3 small coins directly above butterfly
-    int coinCount = 3;
-    for (int i = 0; i < coinCount; i++) {
+    // Spray a few coins upward
+    for (int i = 0; i < 3; i++) {
       burstCoins.add(BurstCoin(
-        x: butterflyX + random.nextDouble() * 30,
-        y: butterflyY - 10 - i * 5,
-        dx: 0,
-        dy: 2 + random.nextDouble() * 1,
-        life: 100,
-        size: 20,
+        x: butterflyX + 10 + random.nextDouble() * 30,
+        y: butterflyY - 10,
+        dx: random.nextDouble() * 4 - 2,
+        dy: -(2 + random.nextDouble() * 2),
+        life: 40 + random.nextInt(20),
+        size: 22,
         value: 1,
       ));
     }
 
-    // spawn tiny static particles
-    for (int i = 0; i < 5; i++) {
+    // Tiny colored particles
+    for (int i = 0; i < 6; i++) {
       particles.add(StaticParticle(
-        x: butterflyX + random.nextDouble() * 40,
-        y: butterflyY + random.nextDouble() * 10,
+        x: butterflyX + 15 + random.nextDouble() * 20,
+        y: butterflyY + 10,
+        dx: random.nextDouble() * 4 - 2,
+        dy: -(1 + random.nextDouble() * 2),
         size: 4,
         color: Colors.pinkAccent,
+        life: 20 + random.nextInt(10),
       ));
     }
   }
@@ -247,53 +238,6 @@ class _GameScreenState extends State<GameScreen>
       setState(() {
         currentMultiplier = 1.0;
         multiplierActive = false;
-      });
-    });
-  }
-
-  void _collectGem(FallingItem gem) {
-    gemsCollected++;
-    burstCoins.add(BurstCoin(
-      x: gem.x,
-      y: gem.y,
-      dx: 0,
-      dy: 2,
-      life: 50,
-      size: 20,
-      value: 0,
-    ));
-    if (gemsCollected >= gemsRequired) {
-      gemsCollected = 0;
-      _triggerBonusRound();
-    }
-  }
-
-  void _triggerBonusRound() {
-    inBonusRound = true;
-    bonusPopupVisible = true;
-    bonusScore = 0;
-    items.clear();
-    obstacles.clear();
-    Future.delayed(Duration(milliseconds: 500), () {
-      bonusPopupVisible = false;
-      int bonusDurationMs = 5000;
-      int spawnIntervalMs = 100;
-      int ticks = bonusDurationMs ~/ spawnIntervalMs;
-      Timer.periodic(Duration(milliseconds: spawnIntervalMs), (timer) {
-        if (!mounted) return;
-        if (timer.tick >= ticks) {
-          timer.cancel();
-          inBonusRound = false;
-          return;
-        }
-        double xPos = random.nextDouble() * (screenWidth - 30);
-        items.add(FallingItem(
-          x: xPos,
-          y: -30,
-          type: FallingItemType.coin,
-          size: 20,
-          value: 1,
-        ));
       });
     });
   }
@@ -363,11 +307,9 @@ class _GameScreenState extends State<GameScreen>
                       ? '🪙'
                       : item.type == FallingItemType.magicOrb
                           ? '✨'
-                          : item.type == FallingItemType.gem
-                              ? '💎'
-                              : item.type == FallingItemType.lightning
-                                  ? '⚡'
-                                  : '💰',
+                          : item.type == FallingItemType.lightning
+                              ? '⚡'
+                              : '💰',
                   style: TextStyle(fontSize: item.size),
                 ),
               ),
@@ -391,43 +333,22 @@ class _GameScreenState extends State<GameScreen>
             Positioned(
               top: 40,
               left: 20,
-              child: Text('Coins: $score',
-                  style: TextStyle(
-                      fontSize: 30,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold)),
-            ),
-            // Gems
-            Positioned(
-              top: 90,
-              left: 20,
               child: Row(
-                children: List.generate(gemsRequired, (index) {
-                  bool filled = index < gemsCollected;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: Icon(
-                      Icons.diamond,
-                      color: filled ? Colors.blueAccent : Colors.white54,
-                      size: 32,
-                    ),
-                  );
-                }),
-              ),
-            ),
-            // Bonus popup
-            if (bonusPopupVisible)
-              Center(
-                child: Container(
-                  color: Colors.black87,
-                  padding: EdgeInsets.all(20),
-                  child: Text('BONUS ROUND!',
+                children: [
+                  Text('Coins: $score',
                       style: TextStyle(
                           fontSize: 30,
-                          color: Colors.yellowAccent,
+                          color: Colors.white,
                           fontWeight: FontWeight.bold)),
-                ),
+                  if (multiplierActive)
+                    Text(' x2',
+                        style: TextStyle(
+                            fontSize: 28,
+                            color: Colors.yellowAccent,
+                            fontWeight: FontWeight.bold))
+                ],
               ),
+            ),
             // Game over
             if (gameOver)
               Center(
@@ -467,7 +388,7 @@ class FallingItem {
       x: x ?? this.x, y: y ?? this.y, type: type, size: size, value: value);
 }
 
-enum FallingItemType { coin, magicOrb, gem, star, bill, moneyBag, lightning }
+enum FallingItemType { coin, magicOrb, lightning }
 
 class BurstCoin {
   final double x, y, dx, dy;
@@ -475,14 +396,23 @@ class BurstCoin {
   final double size;
   final int value;
   BurstCoin({required this.x, required this.y, required this.dx, required this.dy, required this.life, required this.size, required this.value});
-  BurstCoin copyWith({double? x, double? y, double? dx, double? dy}) => BurstCoin(
-      x: x ?? this.x, y: y ?? this.y, dx: dx ?? this.dx, dy: dy ?? this.dy, life: life, size: size, value: value);
+  BurstCoin copyWith({double? x, double? y, double? dx, double? dy, int? life}) => BurstCoin(
+      x: x ?? this.x, y: y ?? this.y, dx: dx ?? this.dx, dy: dy ?? this.dy, life: life ?? this.life, size: size, value: value);
 }
 
 class StaticParticle {
-  final double x, y;
+  final double x, y, dx, dy;
   final double size;
   final Color color;
-  StaticParticle({required this.x, required this.y, required this.size, required this.color});
-  StaticParticle copyWith({double? y}) => StaticParticle(x: x, y: y ?? this.y, size: size, color: color);
+  final int life;
+  StaticParticle({required this.x, required this.y, this.dx = 0, this.dy = 1, required this.size, required this.color, required this.life});
+  StaticParticle copyWith({double? x, double? y, double? dx, double? dy, int? life}) =>
+      StaticParticle(
+          x: x ?? this.x,
+          y: y ?? this.y,
+          dx: dx ?? this.dx,
+          dy: dy ?? this.dy,
+          size: size,
+          color: color,
+          life: life ?? this.life);
 }
