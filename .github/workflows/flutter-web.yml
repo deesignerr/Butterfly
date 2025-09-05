@@ -1,0 +1,33 @@
+name: Build and Deploy Flutter Web
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.19.6'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build web
+        # ✅ Added --base-href so paths work for GitHub Pages
+        run: flutter build web --release --base-href /butterfly/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          # Use a Personal Access Token since the repo is private
+          personal_token: ${{ secrets.GH_PAT }}
+          publish_dir: ./build/web
+          keep_files: true
