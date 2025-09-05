@@ -31,9 +31,6 @@ class _GameScreenState extends State<GameScreen>
   bool multiplierActive = false;
   Timer? multiplierTimer;
 
-  Offset screenOffset = Offset.zero;
-  bool flashActive = false;
-
   bool inBonusRound = false;
   bool showingBonusEndPopup = false;
   bool bonusPopupVisible = false;
@@ -51,8 +48,7 @@ class _GameScreenState extends State<GameScreen>
   List<Obstacle> obstacles = [];
   List<FallingItem> items = [];
   List<BurstCoin> burstCoins = [];
-  List<Particle> particles = [];
-  List<FlowerPetal> petals = [];
+  List<StaticParticle> particles = [];
 
   final List<String> obstacleTypes = ['🌸', '🍄', '🍃', '🐝'];
 
@@ -83,168 +79,108 @@ class _GameScreenState extends State<GameScreen>
     if (!initialized || gameOver) return;
 
     setState(() {
+      // Increase speed gradually
       if (!inBonusRound && score != 0 && score % 10 == 0) {
         speed = 3.0 * (1 + 0.02 * (score ~/ 10));
       }
+      speed = min(speed, 8.0);
 
-      if (!inBonusRound) {
-        speed = min(speed, 8.0);
-
-        int baseObstacles = 1;
-        int extraObstacles = min((score ~/ 100) * 5, 50);
-        int targetObstacles = baseObstacles + extraObstacles;
-
-        while (obstacles.length < targetObstacles) {
-          double lastY = obstacles.isNotEmpty ? obstacles.last.y : screenHeight;
-          double spacing = score >= 950
-              ? 10
-              : score >= 900
-                  ? 20
-                  : score >= 800
-                      ? 30
-                      : 120;
-
-          if (obstacles.isEmpty || lastY > spacing) {
-            obstacles.add(Obstacle(
+      // Spawn obstacles
+      int targetObstacles = 1 + min(score ~/ 100 * 5, 50);
+      while (obstacles.length < targetObstacles) {
+        double lastY = obstacles.isNotEmpty ? obstacles.last.y : screenHeight;
+        double spacing = 120;
+        if (score >= 800) spacing = 30;
+        if (obstacles.isEmpty || lastY > spacing) {
+          obstacles.add(Obstacle(
               x: random.nextDouble() * (screenWidth - 50),
               y: -50,
               type: obstacleTypes[random.nextInt(obstacleTypes.length)],
-              drift: random.nextDouble() * 1.5 - 0.75,
-            ));
-          } else {
-            break;
-          }
+              drift: random.nextDouble() * 1.5 - 0.75));
+        } else {
+          break;
         }
+      }
 
-        // Spawn items
-        if (items.isEmpty || items.last.y > 80) {
-          double roll = random.nextDouble();
-          if (roll < 0.05) {
-            items.add(FallingItem(
-              x: random.nextDouble() * (screenWidth - 30),
-              y: -30,
-              type: FallingItemType.lightning,
-              size: 40,
-            ));
-          } else if (score < 800 && roll < 0.10) {
-            items.add(FallingItem(
-              x: random.nextDouble() * (screenWidth - 40),
-              y: -30,
-              type: FallingItemType.gem,
-              size: 30,
-            ));
-          } else if (roll < 0.15) {
-            items.add(FallingItem(
-              x: random.nextDouble() * (screenWidth - 30),
-              y: -30,
-              type: FallingItemType.magicOrb,
-              size: 40,
-            ));
-          } else {
-            items.add(FallingItem(
-              x: random.nextDouble() * (screenWidth - 20),
-              y: -30,
-              type: FallingItemType.coin,
-              size: 20,
-            ));
-          }
+      // Spawn items
+      if (items.isEmpty || items.last.y > 80) {
+        double roll = random.nextDouble();
+        FallingItemType type;
+        int value = 1;
+        double size = 20;
+        if (roll < 0.05) {
+          type = FallingItemType.lightning;
+          size = 40;
+        } else if (score < 800 && roll < 0.10) {
+          type = FallingItemType.gem;
+          size = 30;
+        } else if (roll < 0.15) {
+          type = FallingItemType.magicOrb;
+          size = 30;
+        } else {
+          type = FallingItemType.coin;
+          size = 20;
         }
-
-        obstacles = obstacles
-            .map((o) => o.copyWith(
-                y: o.y + speed,
-                x: (o.x + o.drift).clamp(0.0, screenWidth - 50)))
-            .toList();
-
-        items = items.map((c) => c.copyWith(y: c.y + speed)).toList();
-      } else {
-        items = items.map((c) => c.copyWith(y: c.y + speed * 2)).toList();
+        items.add(FallingItem(
+            x: random.nextDouble() * (screenWidth - size),
+            y: -30,
+            type: type,
+            size: size,
+            value: value));
       }
 
-      // Burst coins
-      for (var b in burstCoins.toList()) {
-        burstCoins[burstCoins.indexOf(b)] = b.copyWith(
-          x: b.x + b.dx,
-          y: b.y + b.dy,
-          dx: b.dx * 0.99,
-          dy: b.dy + 0.25,
-          life: b.life - 1,
-        );
-      }
-      burstCoins.removeWhere((b) => b.life <= 0 || b.y > screenHeight + 50);
-      if (burstCoins.length > 100) burstCoins.removeRange(0, burstCoins.length - 100);
+      // Move obstacles & items
+      obstacles = obstacles
+          .map((o) => o.copyWith(
+              y: o.y + speed, x: (o.x + o.drift).clamp(0.0, screenWidth - 50)))
+          .toList();
+      items = items
+          .map((c) => c.copyWith(y: c.y + (inBonusRound ? speed * 2 : speed)))
+          .toList();
 
-      // Particles
-      for (var p in particles.toList()) {
-        particles[particles.indexOf(p)] = p.copyWith(
-          x: p.x + p.dx,
-          y: p.y + p.dy,
-          life: p.life - 1,
-        );
+      // Move burstCoins
+      for (var i = 0; i < burstCoins.length; i++) {
+        BurstCoin b = burstCoins[i];
+        burstCoins[i] = b.copyWith(y: b.y + b.dy);
       }
-      particles.removeWhere((p) => p.life <= 0);
+      burstCoins.removeWhere((b) => b.y > screenHeight + 50);
 
-      // Petals
-      for (var p in petals.toList()) {
-        petals[petals.indexOf(p)] = p.copyWith(
-          x: p.x + p.dx,
-          y: p.y + p.dy,
-          life: p.life - 1,
-        );
+      // Move particles
+      for (var i = 0; i < particles.length; i++) {
+        StaticParticle p = particles[i];
+        particles[i] = p.copyWith(y: p.y + 0.5);
       }
-      petals.removeWhere((p) => p.life <= 0);
+      particles.removeWhere((p) => p.y > screenHeight + 50);
 
-      // Collisions with items
+      // Check collisions
       for (var item in items.toList()) {
-        if (isColliding(
-            butterflyX, butterflyY, 50, 50, item.x, item.y, item.size, item.size)) {
+        if (_isColliding(butterflyX, butterflyY, 50, 50, item.x, item.y, item.size, item.size)) {
           switch (item.type) {
             case FallingItemType.coin:
             case FallingItemType.bill:
             case FallingItemType.moneyBag:
-              if (!inBonusRound) {
-                score += ((item.value ?? 1) * currentMultiplier).toInt();
-              } else {
-                bonusScore += ((item.value ?? 1) * currentMultiplier).toInt();
-              }
-              _spawnParticles(butterflyX + 25, butterflyY + 25, 4, Colors.yellowAccent);
+              _collectScore(item.value!);
               break;
-
             case FallingItemType.gem:
               _collectGem(item);
               break;
-
             case FallingItemType.magicOrb:
-              if (!inBonusRound) _triggerFlowerBurst();
+              _triggerMagicOrb();
               break;
-
             case FallingItemType.lightning:
               _activateMultiplier(2.0, Duration(seconds: 10));
-              _spawnMultiplierEffects(butterflyX + 25, butterflyY + 25);
               break;
-
             default:
               break;
           }
-
           items.remove(item);
         }
       }
 
-      // Collisions with burstCoins
-      for (var b in burstCoins.toList()) {
-        if (isColliding(butterflyX, butterflyY, 50, 50, b.x, b.y, b.size, b.size)) {
-          if (inBonusRound) bonusScore += b.value;
-          else score += b.value;
-          _spawnParticles(b.x, b.y, 2, Colors.yellowAccent);
-          burstCoins.remove(b);
-        }
-      }
-
-      // Collisions with obstacles
+      // Check collisions with obstacles
       if (!inBonusRound) {
         for (var obs in obstacles.toList()) {
-          if (isColliding(
+          if (_isColliding(
               butterflyX, butterflyY, 50, 50, obs.x, obs.y, 50, 50)) {
             gameOver = true;
             _controller.stop();
@@ -264,54 +200,40 @@ class _GameScreenState extends State<GameScreen>
     });
   }
 
-  void _spawnParticles(double x, double y, int count, Color color) {
-    for (int i = 0; i < count; i++) {
-      particles.add(Particle(
-        x: x,
-        y: y,
-        dx: random.nextDouble() * 4 - 2,
-        dy: random.nextDouble() * -4,
-        life: 12 + random.nextInt(10),
-        color: color,
-      ));
-    }
+  void _collectScore(int value) {
+    score += (value * currentMultiplier).toInt();
+    particles.add(StaticParticle(
+      x: butterflyX + 25,
+      y: butterflyY + 25,
+      size: 5,
+      color: Colors.yellowAccent,
+    ));
   }
 
-  void _triggerFlowerBurst() {
-    double originX = butterflyX + 25;
-    double originY = butterflyY + 25;
-
-    int petalCount = 3 + random.nextInt(3); // 3-5 petals
-    for (int i = 0; i < petalCount; i++) {
-      double angle = 2 * pi * i / petalCount;
-      double spd = 1.5 + random.nextDouble() * 1.5;
-      petals.add(FlowerPetal(
-        x: originX,
-        y: originY,
-        dx: cos(angle) * spd,
-        dy: sin(angle) * spd,
-        life: 15 + random.nextInt(10),
-        color: Colors.primaries[random.nextInt(Colors.primaries.length)],
-        size: 8 + random.nextDouble() * 8,
+  void _triggerMagicOrb() {
+    // spawn 3 small coins directly above butterfly
+    int coinCount = 3;
+    for (int i = 0; i < coinCount; i++) {
+      burstCoins.add(BurstCoin(
+        x: butterflyX + random.nextDouble() * 30,
+        y: butterflyY - 10 - i * 5,
+        dx: 0,
+        dy: 2 + random.nextDouble() * 1,
+        life: 100,
+        size: 20,
+        value: 1,
       ));
-
-      int coins = 1 + random.nextInt(2); // 1-2 coins per petal
-      for (int c = 0; c < coins; c++) {
-        double vx = cos(angle) * (0.5 + random.nextDouble());
-        double vy = sin(angle) * (0.5 + random.nextDouble()) - 1.0;
-        burstCoins.add(BurstCoin(
-          x: originX,
-          y: originY,
-          dx: vx,
-          dy: vy,
-          life: 40,
-          size: 16,
-          value: 1,
-        ));
-      }
     }
 
-    _spawnParticles(originX, originY, 4, Colors.yellowAccent);
+    // spawn tiny static particles
+    for (int i = 0; i < 5; i++) {
+      particles.add(StaticParticle(
+        x: butterflyX + random.nextDouble() * 40,
+        y: butterflyY + random.nextDouble() * 10,
+        size: 4,
+        color: Colors.pinkAccent,
+      ));
+    }
   }
 
   void _activateMultiplier(double multiplier, Duration duration) {
@@ -320,7 +242,6 @@ class _GameScreenState extends State<GameScreen>
       currentMultiplier = multiplier;
       multiplierActive = true;
     });
-
     multiplierTimer = Timer(duration, () {
       if (!mounted) return;
       setState(() {
@@ -330,142 +251,49 @@ class _GameScreenState extends State<GameScreen>
     });
   }
 
-  void _spawnMultiplierEffects(double x, double y) {
-    _spawnParticles(x, y, 4, Colors.yellowAccent.withOpacity(0.8));
-  }
-
   void _collectGem(FallingItem gem) {
-    setState(() => gemsCollected++);
-    double targetX = 200 + 40.0 * (gemsCollected - 1);
-    double targetY = 40.0;
-    double dx = (targetX - gem.x) / 15;
-    double dy = (targetY - gem.y) / 15;
-
-    for (int i = 0; i < 15; i++) {
-      Timer(Duration(milliseconds: i * 16), () {
-        if (!mounted) return;
-        setState(() {
-          burstCoins.add(BurstCoin(
-            x: gem.x + dx * i,
-            y: gem.y + dy * i,
-            dx: 0,
-            dy: 0,
-            life: 1,
-            size: 24,
-            value: 0,
-          ));
-        });
-      });
-    }
-
+    gemsCollected++;
+    burstCoins.add(BurstCoin(
+      x: gem.x,
+      y: gem.y,
+      dx: 0,
+      dy: 2,
+      life: 50,
+      size: 20,
+      value: 0,
+    ));
     if (gemsCollected >= gemsRequired) {
-      Future.delayed(Duration(milliseconds: 250), () {
-        _triggerBonusRound();
-        setState(() => gemsCollected = 0);
-      });
+      gemsCollected = 0;
+      _triggerBonusRound();
     }
   }
 
   void _triggerBonusRound() {
-    if (inBonusRound) return;
-    setState(() {
-      inBonusRound = true;
-      bonusPopupVisible = true;
-      bonusScore = 0;
-      items.clear();
-      obstacles.clear();
-    });
-
+    inBonusRound = true;
+    bonusPopupVisible = true;
+    bonusScore = 0;
+    items.clear();
+    obstacles.clear();
     Future.delayed(Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      setState(() => bonusPopupVisible = false);
-
-      int ticks = 5000 ~/ 100;
-      Timer.periodic(Duration(milliseconds: 100), (timer) {
+      bonusPopupVisible = false;
+      int bonusDurationMs = 5000;
+      int spawnIntervalMs = 100;
+      int ticks = bonusDurationMs ~/ spawnIntervalMs;
+      Timer.periodic(Duration(milliseconds: spawnIntervalMs), (timer) {
         if (!mounted) return;
         if (timer.tick >= ticks) {
           timer.cancel();
-          _endBonusRound();
+          inBonusRound = false;
           return;
         }
-
-        double xPos = random.nextDouble() * (screenWidth - 40);
-        int roll = random.nextInt(3);
-        FallingItemType type;
-        int value;
-        switch (roll) {
-          case 0:
-            type = FallingItemType.coin;
-            value = 1 + random.nextInt(3);
-            break;
-          case 1:
-            type = FallingItemType.bill;
-            value = 5 + random.nextInt(6);
-            break;
-          default:
-            type = FallingItemType.moneyBag;
-            value = 10 + random.nextInt(11);
-            break;
-        }
-
+        double xPos = random.nextDouble() * (screenWidth - 30);
         items.add(FallingItem(
           x: xPos,
           y: -30,
-          type: type,
-          size: 28 + random.nextInt(9).toDouble(),
-          value: value,
+          type: FallingItemType.coin,
+          size: 20,
+          value: 1,
         ));
-      });
-    });
-  }
-
-  void _endBonusRound() {
-    setState(() {
-      items.clear();
-      obstacles.clear();
-      showingBonusEndPopup = true;
-      displayedBonus = 0;
-    });
-
-    int increment = (bonusScore / 50).ceil();
-    Timer.periodic(Duration(milliseconds: 50), (timer) {
-      if (!mounted) return;
-      if (displayedBonus >= bonusScore) {
-        timer.cancel();
-        Future.delayed(Duration(milliseconds: 500), _animateBonusIntoScore);
-        return;
-      }
-      setState(() {
-        displayedBonus = (displayedBonus + increment).clamp(0, bonusScore);
-      });
-    });
-  }
-
-  void _animateBonusIntoScore() {
-    int remaining = bonusScore;
-    int step = (bonusScore / 50).ceil();
-    Timer.periodic(Duration(milliseconds: 20), (timer) {
-      if (!mounted) return;
-      if (remaining <= 0) {
-        timer.cancel();
-        Future.delayed(Duration(milliseconds: 1500), () {
-          if (!mounted) return;
-          setState(() {
-            showingBonusEndPopup = false;
-            bonusScore = 0;
-            inBonusRound = false;
-          });
-        });
-        return;
-      }
-      setState(() {
-        int actualStep = min(step, remaining);
-        if (score + actualStep > 950) {
-          actualStep = 950 - score;
-          remaining = 0;
-        }
-        remaining -= actualStep;
-        score += actualStep;
       });
     });
   }
@@ -476,7 +304,6 @@ class _GameScreenState extends State<GameScreen>
       items.clear();
       burstCoins.clear();
       particles.clear();
-      petals.clear();
       score = 0;
       speed = 3.0;
       gameOver = false;
@@ -485,7 +312,7 @@ class _GameScreenState extends State<GameScreen>
     });
   }
 
-  bool isColliding(double bx, double by, double bw, double bh, double ox,
+  bool _isColliding(double bx, double by, double bw, double bh, double ox,
       double oy, double ow, double oh) {
     return bx < ox + ow && bx + bw > ox && by < oy + oh && by + bh > oy;
   }
@@ -493,259 +320,151 @@ class _GameScreenState extends State<GameScreen>
   @override
   Widget build(BuildContext context) {
     if (!initialized) return Container();
-
     return GestureDetector(
       onHorizontalDragUpdate: moveButterfly,
       onTap: () {
         if (gameOver) restartGame();
       },
-      child: Transform.translate(
-        offset: screenOffset,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.lightBlue.shade200, Colors.pink.shade100],
-            ),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.lightBlue.shade200, Colors.pink.shade100],
           ),
-          child: Stack(
-            children: [
-              // Petals
-              for (var p in petals)
-                Positioned(
-                  left: p.x,
-                  top: p.y,
-                  child: Container(
-                    width: p.size,
-                    height: p.size,
-                    decoration: BoxDecoration(
-                      color: p.color.withOpacity((p.life / 70).clamp(0.0, 1.0)),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              // Burst coins
-              for (var b in burstCoins)
-                Positioned(
-                  left: b.x,
-                  top: b.y,
-                  child: Text('🪙', style: TextStyle(fontSize: b.size)),
-                ),
-              // Particles
-              for (var p in particles)
-                Positioned(
-                  left: p.x,
-                  top: p.y,
-                  child: Container(
-                    width: 4,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: p.color.withOpacity((p.life / 40).clamp(0.0, 1.0)),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              // Items
-              for (var item in items)
-                Positioned(
-                  left: item.x,
-                  top: item.y,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Text(
-                        item.type == FallingItemType.coin
-                            ? '🪙'
-                            : item.type == FallingItemType.magicOrb
-                                ? '✨'
-                                : item.type == FallingItemType.gem
-                                    ? '💎'
-                                    : item.type == FallingItemType.bill
-                                        ? '💵'
-                                        : item.type == FallingItemType.lightning
-                                            ? '⚡'
-                                            : '💰',
-                        style: TextStyle(fontSize: item.size),
-                      ),
-                      if (item.type == FallingItemType.coin && multiplierActive)
-                        Positioned(
-                          right: -25,
-                          top: -5,
-                          child: Text(
-                            'x${currentMultiplier.toInt()}',
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.yellowAccent),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              // Obstacles
-              for (var obs in obstacles)
-                Positioned(
-                  left: obs.x,
-                  top: obs.y,
-                  child: Text(
-                    obs.type,
-                    style: TextStyle(fontSize: 50),
-                  ),
-                ),
-              // Butterfly
+        ),
+        child: Stack(
+          children: [
+            // Particles
+            for (var p in particles)
               Positioned(
-                left: butterflyX - 15,
-                top: butterflyY - 15,
+                left: p.x,
+                top: p.y,
                 child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: multiplierActive
-                      ? BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.6),
-                              blurRadius: 20,
-                              spreadRadius: 5,
-                            ),
-                          ],
-                        )
-                      : null,
-                  child: Center(
-                    child: Text('🦋', style: TextStyle(fontSize: 50)),
-                  ),
+                  width: p.size,
+                  height: p.size,
+                  decoration: BoxDecoration(
+                      color: p.color, shape: BoxShape.circle),
                 ),
               ),
-              // Score
+            // Burst coins
+            for (var b in burstCoins)
               Positioned(
-                top: 40,
-                left: 20,
+                  left: b.x,
+                  top: b.y,
+                  child: Text('🪙', style: TextStyle(fontSize: b.size))),
+            // Items
+            for (var item in items)
+              Positioned(
+                left: item.x,
+                top: item.y,
                 child: Text(
-                  'Coins: $score',
+                  item.type == FallingItemType.coin
+                      ? '🪙'
+                      : item.type == FallingItemType.magicOrb
+                          ? '✨'
+                          : item.type == FallingItemType.gem
+                              ? '💎'
+                              : item.type == FallingItemType.lightning
+                                  ? '⚡'
+                                  : '💰',
+                  style: TextStyle(fontSize: item.size),
+                ),
+              ),
+            // Obstacles
+            for (var obs in obstacles)
+              Positioned(
+                left: obs.x,
+                top: obs.y,
+                child: Text(
+                  obs.type,
+                  style: TextStyle(fontSize: 50),
+                ),
+              ),
+            // Butterfly
+            Positioned(
+              left: butterflyX,
+              top: butterflyY,
+              child: Text('🦋', style: TextStyle(fontSize: 50)),
+            ),
+            // Score
+            Positioned(
+              top: 40,
+              left: 20,
+              child: Text('Coins: $score',
                   style: TextStyle(
                       fontSize: 30,
                       color: Colors.white,
-                      fontWeight: FontWeight.bold),
+                      fontWeight: FontWeight.bold)),
+            ),
+            // Gems
+            Positioned(
+              top: 90,
+              left: 20,
+              child: Row(
+                children: List.generate(gemsRequired, (index) {
+                  bool filled = index < gemsCollected;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: Icon(
+                      Icons.diamond,
+                      color: filled ? Colors.blueAccent : Colors.white54,
+                      size: 32,
+                    ),
+                  );
+                }),
+              ),
+            ),
+            // Bonus popup
+            if (bonusPopupVisible)
+              Center(
+                child: Container(
+                  color: Colors.black87,
+                  padding: EdgeInsets.all(20),
+                  child: Text('BONUS ROUND!',
+                      style: TextStyle(
+                          fontSize: 30,
+                          color: Colors.yellowAccent,
+                          fontWeight: FontWeight.bold)),
                 ),
               ),
-              // Gems
-              Positioned(
-                top: 90,
-                left: 20,
-                child: Row(
-                  children: List.generate(gemsRequired, (index) {
-                    bool filled = index < gemsCollected;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                      child: Icon(
-                        Icons.diamond,
-                        color: filled ? Colors.blueAccent : Colors.white54,
-                        size: 32,
-                      ),
-                    );
-                  }),
-                ),
-              ),
-              // Bonus popup
-              if (bonusPopupVisible)
-                Center(
-                  child: Container(
-                    color: Colors.black87,
-                    padding: EdgeInsets.all(20),
-                    child: Text(
-                      'BONUS ROUND!',
-                      style: TextStyle(
-                        fontSize: 30,
-                        color: Colors.yellowAccent,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              if (showingBonusEndPopup)
-                Center(
-                  child: Container(
-                    color: Colors.black87,
-                    padding: EdgeInsets.all(20),
-                    child: Text(
-                      'BONUS SCORE: $displayedBonus',
-                      style: TextStyle(
-                        fontSize: 42,
-                        color: Colors.greenAccent,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              if (gameOver)
-                Center(
-                  child: Container(
-                    color: Colors.black54,
-                    padding: EdgeInsets.all(20),
-                    child: Text(
-                      'GAME OVER\nTap to Restart',
+            // Game over
+            if (gameOver)
+              Center(
+                child: Container(
+                  color: Colors.black54,
+                  padding: EdgeInsets.all(20),
+                  child: Text('GAME OVER\nTap to Restart',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 30,
                           color: Colors.white,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ),
+                          fontWeight: FontWeight.bold)),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ---------------- Supporting Classes ----------------
-
+// ---------------- Classes ----------------
 class Obstacle {
-  final double x;
-  final double y;
+  final double x, y, drift;
   final String type;
-  final double drift;
-
-  Obstacle({required this.x, required this.y, required this.type, this.drift = 0.0});
-
-  Obstacle copyWith({double? x, double? y, String? type, double? drift}) {
-    return Obstacle(
-      x: x ?? this.x,
-      y: y ?? this.y,
-      type: type ?? this.type,
-      drift: drift ?? this.drift,
-    );
-  }
+  Obstacle({required this.x, required this.y, required this.type, this.drift = 0});
+  Obstacle copyWith({double? x, double? y, double? drift}) =>
+      Obstacle(x: x ?? this.x, y: y ?? this.y, type: type, drift: drift ?? this.drift);
 }
 
 class FallingItem {
-  final double x, y;
+  final double x, y, size;
   final FallingItemType type;
-  final double size;
-  final double dx;
   final int? value;
-
-  FallingItem(
-      {required this.x,
-      required this.y,
-      required this.type,
-      this.size = 20,
-      this.dx = 0,
-      this.value});
-
-  FallingItem copyWith({double? x, double? y}) {
-    return FallingItem(
-      x: x ?? this.x,
-      y: y ?? this.y,
-      type: type,
-      size: size,
-      dx: dx,
-      value: value,
-    );
-  }
+  FallingItem({required this.x, required this.y, required this.type, this.size = 20, this.value});
+  FallingItem copyWith({double? x, double? y}) => FallingItem(
+      x: x ?? this.x, y: y ?? this.y, type: type, size: size, value: value);
 }
 
 enum FallingItemType { coin, magicOrb, gem, star, bill, moneyBag, lightning }
@@ -755,65 +474,15 @@ class BurstCoin {
   final int life;
   final double size;
   final int value;
-
-  BurstCoin(
-      {required this.x,
-      required this.y,
-      required this.dx,
-      required this.dy,
-      required this.life,
-      required this.size,
-      required this.value});
-
-  BurstCoin copyWith({double? x, double? y, double? dx, double? dy, int? life, double? size, int? value}) {
-    return BurstCoin(
-      x: x ?? this.x,
-      y: y ?? this.y,
-      dx: dx ?? this.dx,
-      dy: dy ?? this.dy,
-      life: life ?? this.life,
-      size: size ?? this.size,
-      value: value ?? this.value,
-    );
-  }
+  BurstCoin({required this.x, required this.y, required this.dx, required this.dy, required this.life, required this.size, required this.value});
+  BurstCoin copyWith({double? x, double? y, double? dx, double? dy}) => BurstCoin(
+      x: x ?? this.x, y: y ?? this.y, dx: dx ?? this.dx, dy: dy ?? this.dy, life: life, size: size, value: value);
 }
 
-class Particle {
-  final double x, y, dx, dy;
-  final int life;
-  final Color color;
-
-  Particle({required this.x, required this.y, required this.dx, required this.dy, required this.life, required this.color});
-
-  Particle copyWith({double? x, double? y, double? dx, double? dy, int? life, Color? color}) {
-    return Particle(
-      x: x ?? this.x,
-      y: y ?? this.y,
-      dx: dx ?? this.dx,
-      dy: dy ?? this.dy,
-      life: life ?? this.life,
-      color: color ?? this.color,
-    );
-  }
-}
-
-class FlowerPetal {
-  final double x, y, dx, dy;
-  final int life;
-  final Color color;
+class StaticParticle {
+  final double x, y;
   final double size;
-
-  FlowerPetal({required this.x, required this.y, required this.dx, required this.dy, required this.life, required this.color, required this.size});
-
-  FlowerPetal copyWith({double? x, double? y, double? dx, double? dy, int? life}) {
-    return FlowerPetal(
-      x: x ?? this.x,
-      y: y ?? this.y,
-      dx: dx ?? this.dx,
-      dy: dy ?? this.dy,
-      life: life ?? this.life,
-      color: color,
-      size: size,
-    );
-  }
+  final Color color;
+  StaticParticle({required this.x, required this.y, required this.size, required this.color});
+  StaticParticle copyWith({double? y}) => StaticParticle(x: x, y: y ?? this.y, size: size, color: color);
 }
