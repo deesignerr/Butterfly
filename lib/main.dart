@@ -84,23 +84,21 @@ class _GameScreenState extends State<GameScreen>
     if (!initialized || gameOver) return;
 
     setState(() {
+      // Increase speed gradually
       if (!inBonusRound && score != 0 && score % 10 == 0) {
         speed = 3.0 * (1 + 0.02 * (score ~/ 10));
       }
+      speed = min(speed, 8.0);
 
+      // Update obstacles
       if (!inBonusRound) {
-        double maxSpeed = 8.0;
-        speed = min(speed, maxSpeed);
-
         int baseObstacles = 1;
         int extraObstacles = (score ~/ 100) * 5;
-        int maxExtraObstacles = 50;
-        extraObstacles = min(extraObstacles, maxExtraObstacles);
+        extraObstacles = min(extraObstacles, 50);
         int targetObstacles = baseObstacles + extraObstacles;
 
         while (obstacles.length < targetObstacles) {
           double lastY = obstacles.isNotEmpty ? obstacles.last.y : screenHeight;
-
           double spacing = 120;
           if (score >= 800) spacing = 30;
           if (score >= 900) spacing = 20;
@@ -117,8 +115,10 @@ class _GameScreenState extends State<GameScreen>
             break;
           }
         }
+      }
 
-        // Spawn items
+      // Update items
+      if (!inBonusRound) {
         if (items.isEmpty || items.last.y > 80) {
           double roll = random.nextDouble();
 
@@ -152,54 +152,25 @@ class _GameScreenState extends State<GameScreen>
             ));
           }
         }
-
-        obstacles = obstacles
-            .map((o) => o.copyWith(
-                y: o.y + speed,
-                x: (o.x + o.drift).clamp(0.0, screenWidth - 50)))
-            .toList();
-
-        items = items.map((c) => c.copyWith(y: c.y + speed)).toList();
-      } else {
-        // bonus round: items fall faster
-        items = items.map((c) => c.copyWith(y: c.y + speed * 2)).toList();
       }
 
-// Move burstCoins
-for (var b in burstCoins.toList()) {
-  BurstCoin updated = b.copyWith(
-    x: b.x + b.dx,
-    y: b.y + b.dy,
-    dx: b.dx * 0.99,
-    dy: b.dy + 0.25,
-    life: b.life - 1,
-  );
-  burstCoins[burstCoins.indexOf(b)] = updated;
-}
+      // Move obstacles/items based on round
+      obstacles = obstacles
+          .map((o) => o.copyWith(
+              y: o.y + speed,
+              x: (o.x + o.drift).clamp(0.0, screenWidth - 50)))
+          .toList();
+      items = items
+          .map((c) => c.copyWith(y: c.y + (inBonusRound ? speed * 2 : speed)))
+          .toList();
 
-// Remove dead or off-screen coins
-burstCoins.removeWhere((b) => b.life <= 0 || b.y > screenHeight + 50);
-
-// Limit total burstCoins to 100
-if (burstCoins.length > 100) {
-  burstCoins.removeRange(0, burstCoins.length - 100);
-}
-
-      // Move particles
-      for (var p in particles.toList()) {
-        Particle updated =
-            p.copyWith(x: p.x + p.dx, y: p.y + p.dy, life: p.life - 1);
-        particles[particles.indexOf(p)] = updated;
-      }
-      particles.removeWhere((p) => p.life <= 0);
-
-      // Move petals
-      for (var p in petals.toList()) {
-        FlowerPetal updated =
-            p.copyWith(x: p.x + p.dx, y: p.y + p.dy, life: p.life - 1);
-        petals[petals.indexOf(p)] = updated;
-      }
-      petals.removeWhere((p) => p.life <= 0);
+      // Update particles, burstCoins, petals
+      _updateEffectList(particles, 100, (p) => p.life > 0, (p) => p.copyWith(
+          x: p.x + p.dx, y: p.y + p.dy, life: p.life - 1));
+      _updateEffectList(burstCoins, 100, (b) => b.life > 0 && b.y <= screenHeight + 50,
+          (b) => b.copyWith(dx: b.dx * 0.99, dy: b.dy + 0.25, x: b.x + b.dx, y: b.y + b.dy, life: b.life - 1));
+      _updateEffectList(petals, 100, (p) => p.life > 0 && p.y <= screenHeight + 50,
+          (p) => p.copyWith(x: p.x + p.dx, y: p.y + p.dy, life: p.life - 1));
 
       // Check collisions with items
       for (var item in items.toList()) {
@@ -264,9 +235,19 @@ if (burstCoins.length > 100) {
         }
       }
 
+      // Remove off-screen items/obstacles
       obstacles.removeWhere((o) => o.y > screenHeight + 100);
       items.removeWhere((c) => c.y > screenHeight + 50);
     });
+  }
+
+  void _updateEffectList<T>(
+      List<T> list, int maxLength, bool Function(T) isAlive, T Function(T) update) {
+    for (var i = 0; i < list.length; i++) {
+      list[i] = update(list[i]);
+    }
+    list.removeWhere((e) => !isAlive(e));
+    if (list.length > maxLength) list.removeRange(0, list.length - maxLength);
   }
 
   void moveButterfly(DragUpdateDetails details) {
@@ -318,19 +299,19 @@ if (burstCoins.length > 100) {
     });
   }
 
-void _spawnLightningBurst(double x, double y) {
-  int sparkCount = 6; // fixed number of particles
-  for (int i = 0; i < sparkCount; i++) {
-    particles.add(Particle(
-      x: x,
-      y: y,
-      dx: random.nextDouble() * 10 - 5,
-      dy: random.nextDouble() * -10,
-      life: 25 + random.nextInt(15),
-      color: Colors.yellowAccent,
-    ));
+  void _spawnLightningBurst(double x, double y) {
+    int sparkCount = 6;
+    for (int i = 0; i < sparkCount; i++) {
+      particles.add(Particle(
+        x: x,
+        y: y,
+        dx: random.nextDouble() * 10 - 5,
+        dy: random.nextDouble() * -10,
+        life: 25 + random.nextInt(15),
+        color: Colors.yellowAccent,
+      ));
+    }
   }
-}
 
   void _triggerFlowerBurst() {
     int petalCount = ((12 + random.nextInt(8)) / 2).ceil();
@@ -338,19 +319,19 @@ void _spawnLightningBurst(double x, double y) {
     double originY = butterflyY + 25;
     List<FlowerPetal> newPetals = [];
 
-for (int i = 0; i < petalCount; i++) {
-  double angle = 2 * pi * i / petalCount + (random.nextDouble() - 0.5) * 0.2;
-  double spd = 2.5 + random.nextDouble() * 2.5;
-  newPetals.add(FlowerPetal(
-    x: originX,
-    y: originY,
-    dx: cos(angle) * spd,
-    dy: sin(angle) * spd,
-    life: 40 + random.nextInt(30),
-    color: Colors.primaries[random.nextInt(Colors.primaries.length)],
-    size: 18 + random.nextInt(14).toDouble(),
-  ));
-}
+    for (int i = 0; i < petalCount; i++) {
+      double angle = 2 * pi * i / petalCount + (random.nextDouble() - 0.5) * 0.2;
+      double spd = 2.5 + random.nextDouble() * 2.5;
+      newPetals.add(FlowerPetal(
+        x: originX,
+        y: originY,
+        dx: cos(angle) * spd,
+        dy: sin(angle) * spd,
+        life: 40 + random.nextInt(30),
+        color: Colors.primaries[random.nextInt(Colors.primaries.length)],
+        size: 18 + random.nextInt(14).toDouble(),
+      ));
+    }
     petals.addAll(newPetals);
 
     int ticks = 12 + random.nextInt(8);
@@ -382,7 +363,7 @@ for (int i = 0; i < petalCount; i++) {
       if (timer.tick >= ticks) timer.cancel();
     });
 
-_spawnParticles(originX, originY, 18 + (petalCount ~/ 2), Colors.yellowAccent);
+    _spawnParticles(originX, originY, 18 + (petalCount ~/ 2), Colors.yellowAccent);
   }
 
   void _activateMultiplier(double multiplier, Duration duration) {
@@ -401,20 +382,19 @@ _spawnParticles(originX, originY, 18 + (petalCount ~/ 2), Colors.yellowAccent);
     });
   }
 
-void _spawnMultiplierEffects(double x, double y) {
-  int sparkCount = 6;
-  for (int i = 0; i < sparkCount; i++) {
-    particles.add(Particle(
-      x: x,
-      y: y,
-      dx: random.nextDouble() * 6 - 3,
-      dy: random.nextDouble() * -6,
-      life: 20 + random.nextInt(20),
-      color: Colors.yellowAccent.withOpacity(0.8),
-    ));
+  void _spawnMultiplierEffects(double x, double y) {
+    int sparkCount = 6;
+    for (int i = 0; i < sparkCount; i++) {
+      particles.add(Particle(
+        x: x,
+        y: y,
+        dx: random.nextDouble() * 6 - 3,
+        dy: random.nextDouble() * -6,
+        life: 20 + random.nextInt(20),
+        color: Colors.yellowAccent.withOpacity(0.8),
+      ));
+    }
   }
-}
-
 
   void _collectGem(FallingItem gem) {
     setState(() {
@@ -456,7 +436,6 @@ void _spawnMultiplierEffects(double x, double y) {
   }
 
   void _triggerBonusRound() {
-    // Restore the full bonus round logic:
     if (inBonusRound) return;
     setState(() {
       inBonusRound = true;
@@ -466,7 +445,6 @@ void _spawnMultiplierEffects(double x, double y) {
       obstacles.clear();
     });
 
-    // short freeze with popup then spawn bonus items faster for a duration
     Future.delayed(Duration(milliseconds: 500), () {
       if (!mounted) return;
       setState(() {
@@ -474,7 +452,7 @@ void _spawnMultiplierEffects(double x, double y) {
       });
 
       int bonusDurationMs = 5000;
-      int spawnIntervalMs = 100; // faster spawn in bonus
+      int spawnIntervalMs = 100;
       int ticks = bonusDurationMs ~/ spawnIntervalMs;
 
       Timer.periodic(Duration(milliseconds: spawnIntervalMs), (timer) {
@@ -493,15 +471,15 @@ void _spawnMultiplierEffects(double x, double y) {
         switch (roll) {
           case 0:
             type = FallingItemType.coin;
-            value = 1 + random.nextInt(3); // 1-3
+            value = 1 + random.nextInt(3);
             break;
           case 1:
             type = FallingItemType.bill;
-            value = 5 + random.nextInt(6); // 5-10
+            value = 5 + random.nextInt(6);
             break;
           default:
             type = FallingItemType.moneyBag;
-            value = 10 + random.nextInt(11); // 10-20
+            value = 10 + random.nextInt(11);
             break;
         }
 
@@ -567,7 +545,7 @@ void _spawnMultiplierEffects(double x, double y) {
         int actualStep = min(step, remaining);
         if (score + actualStep > 950) {
           actualStep = 950 - score;
-          remaining = 0; // stop bonus count-up
+          remaining = 0;
         }
 
         remaining -= actualStep;
@@ -617,14 +595,10 @@ void _spawnMultiplierEffects(double x, double y) {
           ),
           child: Stack(
             children: [
-              // Flash overlay
               if (flashActive)
                 Positioned.fill(
-                  child: Container(
-                    color: Colors.yellow.withOpacity(0.3),
-                  ),
+                  child: Container(color: Colors.yellow.withOpacity(0.3)),
                 ),
-              // Petals
               for (var p in petals)
                 Positioned(
                   left: p.x,
@@ -635,44 +609,20 @@ void _spawnMultiplierEffects(double x, double y) {
                     decoration: BoxDecoration(
                       color: p.color.withOpacity((p.life / 70).clamp(0.0, 1.0)),
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: p.color.withOpacity(0.6),
-                          blurRadius: 8,
-                          spreadRadius: 2,
-                        )
-                      ],
                     ),
                   ),
                 ),
-              // Burst coins
               for (var b in burstCoins)
                 Positioned(
                   left: b.x,
                   top: b.y,
                   child: Text('🪙', style: TextStyle(fontSize: b.size)),
                 ),
-              // Particles
-              for (var p in particles)
-                Positioned(
-                  left: p.x,
-                  top: p.y,
-                  child: Container(
-                    width: 5,
-                    height: 5,
-                    decoration: BoxDecoration(
-                        color:
-                            p.color.withOpacity((p.life / 40).clamp(0.0, 1.0)),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: p.color.withOpacity(0.7),
-                            blurRadius: 8,
-                          )
-                        ]),
-                  ),
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: ParticlePainter(particles),
                 ),
-// Items
+              ),
               for (var item in items)
                 Positioned(
                   left: item.x,
@@ -681,16 +631,11 @@ void _spawnMultiplierEffects(double x, double y) {
                       ? Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            // The coin itself
-                            Text(
-                              '🪙',
-                              style: TextStyle(fontSize: item.size),
-                            ),
-                            // Multiplier text next to coin
+                            Text('🪙', style: TextStyle(fontSize: item.size)),
                             if (multiplierActive)
                               Positioned(
-                                right: -25, // slightly to the right of the coin
-                                top: -5, // slightly above the coin
+                                right: -25,
+                                top: -5,
                                 child: Text(
                                   'x${currentMultiplier.toInt()}',
                                   style: TextStyle(
@@ -699,9 +644,7 @@ void _spawnMultiplierEffects(double x, double y) {
                                     color: Colors.yellowAccent,
                                     shadows: [
                                       Shadow(color: Colors.white, blurRadius: 6),
-                                      Shadow(
-                                          color: Colors.orangeAccent,
-                                          blurRadius: 8),
+                                      Shadow(color: Colors.orangeAccent, blurRadius: 8),
                                     ],
                                   ),
                                 ),
@@ -721,43 +664,18 @@ void _spawnMultiplierEffects(double x, double y) {
                           style: TextStyle(fontSize: item.size),
                         ),
                 ),
-
-              // Obstacles
               for (var obs in obstacles)
                 Positioned(
                   left: obs.x,
                   top: obs.y,
-                  child: Text(
-                    obs.type,
-                    style: TextStyle(fontSize: 50),
-                  ),
+                  child: Text(obs.type, style: TextStyle(fontSize: 50)),
                 ),
-// Butterfly with glow
-Positioned(
-  left: butterflyX - 15, // shift left a bit for glow
-  top: butterflyY - 15,  // shift up a bit for glow
-  child: Container(
-    width: 80,  // bigger than 50 to include glow
-    height: 80,
-    decoration: multiplierActive
-        ? BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.white.withOpacity(0.6),
-                blurRadius: 20,
-                spreadRadius: 5,
+              // Butterfly (no glow)
+              Positioned(
+                left: butterflyX,
+                top: butterflyY,
+                child: Text('🦋', style: TextStyle(fontSize: 50)),
               ),
-            ],
-          )
-        : null,
-    child: Center(
-      child: Text('🦋', style: TextStyle(fontSize: 50)),
-    ),
-  ),
-),
-
-              // Score
               Positioned(
                 top: 40,
                 left: 20,
@@ -771,7 +689,6 @@ Positioned(
                   ),
                 ),
               ),
-              // Gems UI
               Positioned(
                 top: 90,
                 left: 20,
@@ -789,7 +706,6 @@ Positioned(
                   }),
                 ),
               ),
-              // Bonus Round Start Popup
               if (bonusPopupVisible)
                 Center(
                   child: Container(
@@ -806,7 +722,6 @@ Positioned(
                     ),
                   ),
                 ),
-              // Bonus Round End Popup
               if (showingBonusEndPopup)
                 Center(
                   child: Container(
@@ -823,7 +738,6 @@ Positioned(
                     ),
                   ),
                 ),
-              // Game Over overlay
               if (gameOver)
                 Center(
                   child: Container(
@@ -849,6 +763,25 @@ Positioned(
   }
 }
 
+// ParticlePainter
+class ParticlePainter extends CustomPainter {
+  final List<Particle> particles;
+
+  ParticlePainter(this.particles);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..isAntiAlias = true;
+    for (var p in particles) {
+      paint.color = p.color.withOpacity((p.life / 40).clamp(0.0, 1.0));
+      canvas.drawCircle(Offset(p.x, p.y), 3, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
 // -------------------- Supporting Classes --------------------
 
 class Obstacle {
@@ -857,8 +790,7 @@ class Obstacle {
   final String type;
   final double drift;
 
-  Obstacle(
-      {required this.x, required this.y, required this.type, this.drift = 0.0});
+  Obstacle({required this.x, required this.y, required this.type, this.drift = 0.0});
 
   Obstacle copyWith({double? x, double? y, String? type, double? drift}) {
     return Obstacle(
@@ -878,13 +810,7 @@ class FallingItem {
   final double dx;
   final int? value;
 
-  FallingItem(
-      {required this.x,
-      required this.y,
-      required this.type,
-      this.size = 20,
-      this.dx = 0,
-      this.value});
+  FallingItem({required this.x, required this.y, required this.type, this.size = 20, this.dx = 0, this.value});
 
   FallingItem copyWith({double? x, double? y}) {
     return FallingItem(
@@ -906,23 +832,9 @@ class BurstCoin {
   final double size;
   final int value;
 
-  BurstCoin(
-      {required this.x,
-      required this.y,
-      required this.dx,
-      required this.dy,
-      required this.life,
-      required this.size,
-      required this.value});
+  BurstCoin({required this.x, required this.y, required this.dx, required this.dy, required this.life, required this.size, required this.value});
 
-  BurstCoin copyWith(
-      {double? x,
-      double? y,
-      double? dx,
-      double? dy,
-      int? life,
-      double? size,
-      int? value}) {
+  BurstCoin copyWith({double? x, double? y, double? dx, double? dy, int? life, double? size, int? value}) {
     return BurstCoin(
       x: x ?? this.x,
       y: y ?? this.y,
@@ -940,16 +852,9 @@ class Particle {
   final int life;
   final Color color;
 
-  Particle(
-      {required this.x,
-      required this.y,
-      required this.dx,
-      required this.dy,
-      required this.life,
-      required this.color});
+  Particle({required this.x, required this.y, required this.dx, required this.dy, required this.life, required this.color});
 
-  Particle copyWith(
-      {double? x, double? y, double? dx, double? dy, int? life, Color? color}) {
+  Particle copyWith({double? x, double? y, double? dx, double? dy, int? life, Color? color}) {
     return Particle(
       x: x ?? this.x,
       y: y ?? this.y,
@@ -967,25 +872,17 @@ class FlowerPetal {
   final Color color;
   final double size;
 
-  FlowerPetal(
-      {required this.x,
-      required this.y,
-      required this.dx,
-      required this.dy,
-      required this.life,
-      required this.color,
-      required this.size});
+  FlowerPetal({required this.x, required this.y, required this.dx, required this.dy, required this.life, required this.color, required this.size});
 
-  FlowerPetal copyWith(
-      {double? x, double? y, double? dx, double? dy, int? life}) {
+  FlowerPetal copyWith({double? x, double? y, double? dx, double? dy, int? life, Color? color, double? size}) {
     return FlowerPetal(
       x: x ?? this.x,
       y: y ?? this.y,
       dx: dx ?? this.dx,
       dy: dy ?? this.dy,
       life: life ?? this.life,
-      color: this.color,
-      size: this.size,
+      color: color ?? this.color,
+      size: size ?? this.size,
     );
   }
 }
