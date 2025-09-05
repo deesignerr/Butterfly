@@ -201,23 +201,6 @@ if (burstCoins.length > 100) {
       }
       petals.removeWhere((p) => p.life <= 0);
 
-// White sparks around butterfly when multiplier is active
-if (multiplierActive) {
-int sparkCount = (((5 + random.nextInt(4)) / 2) / 2).ceil(); // ~1-2 particles
-  for (int i = 0; i < sparkCount; i++) {
-    double angle = random.nextDouble() * 2 * pi;
-    double spd = 1.5 + random.nextDouble() * 1.5;
-    particles.add(Particle(
-      x: butterflyX + 25,
-      y: butterflyY + 25,
-      dx: cos(angle) * spd,
-      dy: sin(angle) * spd,
-      life: 20 + random.nextInt(10),
-      color: Colors.white.withOpacity(0.9),
-    ));
-  }
-}
-
       // Check collisions with items
       for (var item in items.toList()) {
         if (isColliding(
@@ -336,9 +319,7 @@ int sparkCount = (((5 + random.nextInt(4)) / 2) / 2).ceil(); // ~1-2 particles
   }
 
 void _spawnLightningBurst(double x, double y) {
-  int sparkCount = 30; 
-  sparkCount = (sparkCount / 2).ceil(); // halve it to 15
-
+  int sparkCount = 6; // fixed number of particles
   for (int i = 0; i < sparkCount; i++) {
     particles.add(Particle(
       x: x,
@@ -420,18 +401,20 @@ _spawnParticles(originX, originY, 18 + (petalCount ~/ 2), Colors.yellowAccent);
     });
   }
 
-  void _spawnMultiplierEffects(double x, double y) {
-    for (int i = 0; i < 20; i++) {
-      particles.add(Particle(
-        x: x,
-        y: y,
-        dx: random.nextDouble() * 6 - 3,
-        dy: random.nextDouble() * -6,
-        life: 20 + random.nextInt(20),
-        color: Colors.yellowAccent.withOpacity(0.8),
-      ));
-    }
+void _spawnMultiplierEffects(double x, double y) {
+  int sparkCount = 6;
+  for (int i = 0; i < sparkCount; i++) {
+    particles.add(Particle(
+      x: x,
+      y: y,
+      dx: random.nextDouble() * 6 - 3,
+      dy: random.nextDouble() * -6,
+      life: 20 + random.nextInt(20),
+      color: Colors.yellowAccent.withOpacity(0.8),
+    ));
   }
+}
+
 
   void _collectGem(FallingItem gem) {
     setState(() {
@@ -749,12 +732,31 @@ _spawnParticles(originX, originY, 18 + (petalCount ~/ 2), Colors.yellowAccent);
                     style: TextStyle(fontSize: 50),
                   ),
                 ),
-              // Butterfly
-              Positioned(
-                left: butterflyX,
-                top: butterflyY,
-                child: Text('🦋', style: TextStyle(fontSize: 50)),
+// Butterfly with glow
+Positioned(
+  left: butterflyX - 15, // shift left a bit for glow
+  top: butterflyY - 15,  // shift up a bit for glow
+  child: Container(
+    width: 80,  // bigger than 50 to include glow
+    height: 80,
+    decoration: multiplierActive
+        ? BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white.withOpacity(0.6),
+                blurRadius: 20,
+                spreadRadius: 5,
               ),
+            ],
+          )
+        : null,
+    child: Center(
+      child: Text('🦋', style: TextStyle(fontSize: 50)),
+    ),
+  ),
+),
+
               // Score
               Positioned(
                 top: 40,
