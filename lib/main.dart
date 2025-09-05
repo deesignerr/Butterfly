@@ -165,18 +165,25 @@ class _GameScreenState extends State<GameScreen>
         items = items.map((c) => c.copyWith(y: c.y + speed * 2)).toList();
       }
 
-      // Move burstCoins
-      for (var b in burstCoins.toList()) {
-        BurstCoin updated = b.copyWith(
-          x: b.x + b.dx,
-          y: b.y + b.dy,
-          dx: b.dx * 0.99,
-          dy: b.dy + 0.25,
-          life: b.life - 1,
-        );
-        burstCoins[burstCoins.indexOf(b)] = updated;
-      }
-      burstCoins.removeWhere((b) => b.life <= 0 || b.y > screenHeight + 50);
+// Move burstCoins
+for (var b in burstCoins.toList()) {
+  BurstCoin updated = b.copyWith(
+    x: b.x + b.dx,
+    y: b.y + b.dy,
+    dx: b.dx * 0.99,
+    dy: b.dy + 0.25,
+    life: b.life - 1,
+  );
+  burstCoins[burstCoins.indexOf(b)] = updated;
+}
+
+// Remove dead or off-screen coins
+burstCoins.removeWhere((b) => b.life <= 0 || b.y > screenHeight + 50);
+
+// Limit total burstCoins to 100
+if (burstCoins.length > 100) {
+  burstCoins.removeRange(0, burstCoins.length - 100);
+}
 
       // Move particles
       for (var p in particles.toList()) {
@@ -194,22 +201,22 @@ class _GameScreenState extends State<GameScreen>
       }
       petals.removeWhere((p) => p.life <= 0);
 
-      // White sparks around butterfly when multiplier is active
-      if (multiplierActive) {
-        int sparkCount = 5 + random.nextInt(4);
-        for (int i = 0; i < sparkCount; i++) {
-          double angle = random.nextDouble() * 2 * pi;
-          double spd = 1.5 + random.nextDouble() * 1.5;
-          particles.add(Particle(
-            x: butterflyX + 25,
-            y: butterflyY + 25,
-            dx: cos(angle) * spd,
-            dy: sin(angle) * spd,
-            life: 20 + random.nextInt(10),
-            color: Colors.white.withOpacity(0.9),
-          ));
-        }
-      }
+// White sparks around butterfly when multiplier is active
+if (multiplierActive) {
+int sparkCount = (((5 + random.nextInt(4)) / 2) / 2).ceil(); // ~1-2 particles
+  for (int i = 0; i < sparkCount; i++) {
+    double angle = random.nextDouble() * 2 * pi;
+    double spd = 1.5 + random.nextDouble() * 1.5;
+    particles.add(Particle(
+      x: butterflyX + 25,
+      y: butterflyY + 25,
+      dx: cos(angle) * spd,
+      dy: sin(angle) * spd,
+      life: 20 + random.nextInt(10),
+      color: Colors.white.withOpacity(0.9),
+    ));
+  }
+}
 
       // Check collisions with items
       for (var item in items.toList()) {
@@ -328,38 +335,41 @@ class _GameScreenState extends State<GameScreen>
     });
   }
 
-  void _spawnLightningBurst(double x, double y) {
-    for (int i = 0; i < 30; i++) {
-      particles.add(Particle(
-        x: x,
-        y: y,
-        dx: random.nextDouble() * 10 - 5,
-        dy: random.nextDouble() * -10,
-        life: 25 + random.nextInt(15),
-        color: Colors.yellowAccent,
-      ));
-    }
+void _spawnLightningBurst(double x, double y) {
+  int sparkCount = 30; 
+  sparkCount = (sparkCount / 2).ceil(); // halve it to 15
+
+  for (int i = 0; i < sparkCount; i++) {
+    particles.add(Particle(
+      x: x,
+      y: y,
+      dx: random.nextDouble() * 10 - 5,
+      dy: random.nextDouble() * -10,
+      life: 25 + random.nextInt(15),
+      color: Colors.yellowAccent,
+    ));
   }
+}
 
   void _triggerFlowerBurst() {
-    int petalCount = 12 + random.nextInt(8);
+    int petalCount = ((12 + random.nextInt(8)) / 2).ceil();
     double originX = butterflyX + 25;
     double originY = butterflyY + 25;
     List<FlowerPetal> newPetals = [];
 
-    for (int i = 0; i < petalCount; i++) {
-      double angle = 2 * pi * i / petalCount + (random.nextDouble() - 0.5) * 0.2;
-      double spd = 2.5 + random.nextDouble() * 2.5;
-      newPetals.add(FlowerPetal(
-        x: originX,
-        y: originY,
-        dx: cos(angle) * spd,
-        dy: sin(angle) * spd,
-        life: 40 + random.nextInt(30),
-        color: Colors.primaries[random.nextInt(Colors.primaries.length)],
-        size: 18 + random.nextInt(14).toDouble(),
-      ));
-    }
+for (int i = 0; i < petalCount; i++) {
+  double angle = 2 * pi * i / petalCount + (random.nextDouble() - 0.5) * 0.2;
+  double spd = 2.5 + random.nextDouble() * 2.5;
+  newPetals.add(FlowerPetal(
+    x: originX,
+    y: originY,
+    dx: cos(angle) * spd,
+    dy: sin(angle) * spd,
+    life: 40 + random.nextInt(30),
+    color: Colors.primaries[random.nextInt(Colors.primaries.length)],
+    size: 18 + random.nextInt(14).toDouble(),
+  ));
+}
     petals.addAll(newPetals);
 
     int ticks = 12 + random.nextInt(8);
@@ -391,7 +401,7 @@ class _GameScreenState extends State<GameScreen>
       if (timer.tick >= ticks) timer.cancel();
     });
 
-    _spawnParticles(originX, originY, 18 + petalCount ~/ 2, Colors.yellowAccent);
+_spawnParticles(originX, originY, 18 + (petalCount ~/ 2), Colors.yellowAccent);
   }
 
   void _activateMultiplier(double multiplier, Duration duration) {
